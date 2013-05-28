@@ -34,10 +34,12 @@ s01 s02 s03 s04 s05 s06
 a01 a02 a03 a04 a05 a06
 )) {
 	my $huron;
+	my $remainder;
 	eval {
-		$huron = get_huron_from("t/generic_suite/$case.huron");
+		($huron, $remainder) = get_huron_from("t/generic_suite/$case.huron");
 	};
 	fail $case.":\n".$@ if $@;
+	fail $case.": Text remains:\n".$remainder if defined $remainder and $remainder =~ /\S/;
 	my $json;
 	eval{
 		$json = get_json_from("t/generic_suite/$case.json");
@@ -47,3 +49,4 @@ a01 a02 a03 a04 a05 a06
 	cmp_deeply ($huron, $json, $case) or diag Dumper $huron;
 }
 done_testing;
+

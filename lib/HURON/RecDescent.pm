@@ -1,3 +1,11 @@
+
+{
+	package HURON::Insignificant;
+
+	use Moo;
+
+	1;
+}
 package HURON::RecDescent;
 
 use 5.006;
@@ -41,6 +49,11 @@ if you don't export anything, such as for a purely object-oriented module.
 =head2 parse
 
 =cut
+
+sub _significant {
+	my $s = exists $_[0] ? $_[0] : $_ ;
+	defined ref $s ? return ((ref $s) ne 'HURON::Insignificant') : 1;
+}
 sub _unesc {
 	my $s = shift;
 	$s = s/^\\//;
@@ -51,7 +64,10 @@ sub _top_and_tail {
 	shift @items;
 	shift @items;
 	pop @items;
-	join '', @items;
+	my $s; 
+	$s .= (ref $_ ? join '', @$_ : $_ ) foreach @items;
+	#join '', @items;
+	$s;
 }
 our $grammar = q`
 document: ( hash | array | scalar | array_contents | hash_contents )
@@ -60,7 +76,7 @@ hash: '{' hash_contents '}' { $return = $item{hash_contents} }
 
 array: '[' array_contents ']' { $return = $item{hash_contents} }
 
-scalar: (single_quoted_string|double_quoted_string|token|number|true|false|undefined)
+scalar: (single_quoted_string|double_quoted_string|token)
 
 value: ( scalar | hash | array )
 
@@ -70,27 +86,27 @@ single_quoted_string: "'" (escaped_backslash|escaped_special|escaped_single_quot
 
 double_quoted_string: '"' (escaped_backslash|escaped_special|escaped_double_quote|not_double_quote)(s?) '"' { $return = &HURON::RecDescent::_top_and_tail (@item) }
 
-hash_contents: (json_hash_contents|yaml_hash_contents) { $return = [ grep { ref } @item ] }
+hash_contents: (json_hash_contents|yaml_hash_contents)
 
-array_contents: (json_array_contents|yaml_array_contents) { $return = [ grep { ref } @item ] }
+array_contents: (json_array_contents|yaml_array_contents)
 
-json_array_contents: (optional_multiline_space|json_array_item(s)) { $return = [ grep { ref } @item ] }
+json_array_contents: (optional_multiline_space|json_array_item(s)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
 
-json_array_item: (optional_multiline_space|(optional_multiline_space value comma optional_space)(s)) { $return  = $item{value} }
+json_array_item: (optional_multiline_space|optional_multiline_space value optional_space|(optional_multiline_space value comma optional_space)(s)) { $return  = $item{value} }
 
-yaml_array_contents: (optional_multiline_space|yaml_array_item(s)) { $return = [ grep { ref } @item ] }
+yaml_array_contents: (optional_multiline_space|yaml_array_item(s)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
 
 yaml_array_item: (optional_multiline_space newline_plus_dash value (optional_space comma)(?) optional_space) { $return  = $item{value} }
 
-json_hash_contents: (optional_multiline_space|json_hash_pair(s)) { $return = { map { @$_ } grep { ref } @item } }
+json_hash_contents: (optional_multiline_space|json_hash_pair(s)) { $return = { map { @$_ } grep { &HURON::RecDescent::_significant } @item } }
 
 json_hash_pair: (optional_multiline_space key optional_space colon optional_space value comma optional_space(s)) { $return  = [$item{key}, $item{value}] }
 
-yaml_hash_contents: (optional_multiline_space|yaml_hash_pair(s)) { $return = { map { @$_ } grep { ref } @item } }
+yaml_hash_contents: (optional_multiline_space|yaml_hash_pair(s)) { $return = { map { @$_ } grep { &HURON::RecDescent::_significant } @item } }
 
 yaml_hash_pair: (optional_multiline_space newline key optional_space colon optional_space value (optional_space comma)(?) optional_space(s)) { $return  = [$item{key}, $item{value}] }
 
-token: /-?[[:alnum:]_][[:alnum:]_\\-]*/ # may not be a single hyphen
+token: /-?[[:alnum:]_][[:alnum:]_\\-]*/
 
 true: "true" { $return = 1 }
 
@@ -110,19 +126,19 @@ escaped_double_quote: /\\\\"/ { $return = '\\\\\\"' }
 
 escaped_special: /\\\\([^\\\\])/ { $return=&HURON::RecDescent::_unesc($item[1]) }
 
-number: /\\d+/
+number: /\\d+(?!=[[:alnum:]])/
 
-newline: /\\n/
+newline: /\\n/ { $return = HURON::Insignificant->new; }
 
-newline_plus_dash: /\\s*\\n\\s*-[\\x20\\t]/
+newline_plus_dash: /\\s*\\n\\s*-[\\x20\\t]/ { $return = HURON::Insignificant->new; }
 
-optional_space: /[\\t\\x20]*?/
+optional_space: /[\\t\\x20]*?/ { $return = HURON::Insignificant->new; }
 
-optional_multiline_space: /[\\n\\r\\t\\s]*?/ { $return = undef; }
+optional_multiline_space: /[\\n\\r\\t\\s]*?/ { $return = HURON::Insignificant->new; }
 
-not_double_quote: /[^"\\x00-\\x1F\\\\]/
+not_double_quote: /[^"\\x00-\\x1F\\\\]+/ 
 
-not_single_quote: /[^'\\x00-\\x1F\\\\]/
+not_single_quote: /[^'\\x00-\\x1F\\\\]+/
 `;
 
 our $parser = Parse::RecDescent->new($grammar);
