@@ -46,7 +46,7 @@ a01 a02 a03 a04 a05 a06
 	};
 	fail $case.":\n".$@ if $@;
 	use Data::Dumper;
-	cmp_deeply ($huron, $json, $case) or diag Dumper $huron;
+	cmp_deeply ($huron, $json, $case) or diag Dumper {huron=>$huron,json=>$json};
 }
 done_testing;
 

@@ -72,14 +72,15 @@ sub _top_and_tail {
 	#join '', @items;
 	$s;
 }
+$Parse::RecDescent::skip = qr//;
 our $grammar = q`
 document: ( hash | array | scalar | array_contents | hash_contents )
 
 hash: '{' hash_contents '}' { $return = $item{hash_contents} }
 
-array: '[' array_contents ']' { $return = $item{hash_contents} }
+array: '[' array_contents ']' { $return = $item{array_contents} }
 
-scalar: (single_quoted_string|double_quoted_string|token)
+scalar: ( single_quoted_string | double_quoted_string| token )
 
 value: ( scalar | hash | array )
 
@@ -93,11 +94,11 @@ hash_contents: (json_hash_contents|yaml_hash_contents)
 
 array_contents: (json_array_contents|yaml_array_contents)
 
-json_array_contents: (optional_multiline_space|json_array_item(s?) lone_item | json_array_item(s)) { shift @item; $return = [ grep { &HURON::RecDescent::_significant($_)} @item ] }
+json_array_contents: (optional_multiline_space | json_array_item(s?) lone_item | json_array_item(s)) { shift @item; $return = [ grep { &HURON::RecDescent::_significant($_)} @item ] }
 
-lone_item: (optional_multiline_space value optional_multiline_space) { $return = $item{value} }
+lone_item: (value) { shift @item; $return = shift @{[ grep { &HURON::RecDescent::_significant($_) } @item ]} }
 
-json_array_item: (optional_multiline_space lone_item comma optional_multiline_space) { $return = $item{lone_item} }
+json_array_item: (optional_multiline_space lone_item comma optional_multiline_space) { shift @item; $return = [grep { &HURON::RecDescent::_significant($_) } @item] }
 
 yaml_array_contents: (optional_multiline_space|yaml_array_item(s?)) { shift @item; $return = [ grep { &HURON::RecDescent::_significant($_) } @item ] }
 
@@ -119,9 +120,9 @@ false: "false" { $return = 0 }
 
 undefined: "~" { $return = undef }
 
-colon: /:|=>/
+colon: /:|=>/ { $return = HURON::Insignificant->new; }
 
-comma: /,/
+comma: /,/ { $return = HURON::Insignificant->new; }
 
 escaped_backslash: /\\\\\\\\/ { $return = '\\\\' }
 
