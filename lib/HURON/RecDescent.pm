@@ -3,10 +3,12 @@ package HURON::RecDescent;
 use 5.006;
 use strict;
 use warnings;
+use Moo;
+use Parse::RecDescent;
 
 =head1 NAME
 
-HURON::RecDescent - The great new HURON::RecDescent!
+HURON::RecDescent - Recursive Descent Parser for HURON
 
 =head1 VERSION
 
@@ -23,10 +25,11 @@ Quick summary of what the module does.
 
 Perhaps a little code snippet.
 
-    use HURON::RecDescent;
+	use HURON::RecDescent;
 
-    my $foo = HURON::RecDescent->new();
-    ...
+	my $parser = HURON::RecDescent->new();
+	$parser->parse('{id:"44"}')
+	...
 
 =head1 EXPORT
 
@@ -35,19 +38,101 @@ if you don't export anything, such as for a purely object-oriented module.
 
 =head1 SUBROUTINES/METHODS
 
-=head2 function1
+=head2 parse
 
 =cut
+sub _unesc {
+	my $s = shift;
+	$s = s/^\\//;
+	return $s;
+}
+sub _top_and_tail {
+	my @items = @_;
+	shift @items;
+	shift @items;
+	pop @items;
+	join '', @items;
+}
+our $grammar = q`
+document: ( hash | array | scalar | array_contents | hash_contents )
 
-sub function1 {
+hash: '{' hash_contents '}' { $return = $item{hash_contents} }
+
+array: '[' array_contents ']' { $return = $item{hash_contents} }
+
+scalar: (single_quoted_string|double_quoted_string|token|number|true|false|undefined)
+
+value: ( scalar | hash | array )
+
+key: (single_quoted_string|double_quoted_string|token)
+
+single_quoted_string: "'" (escaped_backslash|escaped_special|escaped_single_quote|not_single_quote)(s?) "'" { $return = &HURON::RecDescent::_top_and_tail (@item) }
+
+double_quoted_string: '"' (escaped_backslash|escaped_special|escaped_double_quote|not_double_quote)(s?) '"' { $return = &HURON::RecDescent::_top_and_tail (@item) }
+
+hash_contents: (json_hash_contents|yaml_hash_contents) { $return = [ grep { ref } @item ] }
+
+array_contents: (json_array_contents|yaml_array_contents) { $return = [ grep { ref } @item ] }
+
+json_array_contents: (optional_multiline_space|json_array_item(s)) { $return = [ grep { ref } @item ] }
+
+json_array_item: (optional_multiline_space|(optional_multiline_space value comma optional_space)(s)) { $return  = $item{value} }
+
+yaml_array_contents: (optional_multiline_space|yaml_array_item(s)) { $return = [ grep { ref } @item ] }
+
+yaml_array_item: (optional_multiline_space newline_plus_dash value (optional_space comma)(?) optional_space) { $return  = $item{value} }
+
+json_hash_contents: (optional_multiline_space|json_hash_pair(s)) { $return = { map { @$_ } grep { ref } @item } }
+
+json_hash_pair: (optional_multiline_space key optional_space colon optional_space value comma optional_space(s)) { $return  = [$item{key}, $item{value}] }
+
+yaml_hash_contents: (optional_multiline_space|yaml_hash_pair(s)) { $return = { map { @$_ } grep { ref } @item } }
+
+yaml_hash_pair: (optional_multiline_space newline key optional_space colon optional_space value (optional_space comma)(?) optional_space(s)) { $return  = [$item{key}, $item{value}] }
+
+token: /-?[[:alnum:]_][[:alnum:]_\\-]*/ # may not be a single hyphen
+
+true: "true" { $return = 1 }
+
+false: "false" { $return = 0 }
+
+undefined: "~" { $return = undef }
+
+colon: /:|=>/
+
+comma: /,/
+
+escaped_backslash: /\\\\\\\\/ { $return = '\\\\' }
+
+escaped_single_quote: /\\\\'/ { $return = "\\\\\\'" }
+
+escaped_double_quote: /\\\\"/ { $return = '\\\\\\"' }
+
+escaped_special: /\\\\([^\\\\])/ { $return=&HURON::RecDescent::_unesc($item[1]) }
+
+number: /\\d+/
+
+newline: /\\n/
+
+newline_plus_dash: /\\s*\\n\\s*-[\\x20\\t]/
+
+optional_space: /[\\t\\x20]*?/
+
+optional_multiline_space: /[\\n\\r\\t\\s]*?/ { $return = undef; }
+
+not_double_quote: /[^"\\x00-\\x1F\\\\]/
+
+not_single_quote: /[^'\\x00-\\x1F\\\\]/
+`;
+
+our $parser = Parse::RecDescent->new($grammar);
+sub parse {
+	my $self = shift;
+	my $input = shift;
+	my ($output, $remainder) = $parser->document($input);
+	return $output;
 }
 
-=head2 function2
-
-=cut
-
-sub function2 {
-}
 
 =head1 AUTHOR
 
