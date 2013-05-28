@@ -30,7 +30,7 @@ sub get_json_from {
 }
 
 foreach my $case (qw(
-s01 s02 s03 s04 s05 s06
+s01 s02 s03 s04 s05 s06 s07 s08
 a01 a02 a03 a04 a05 a06
 )) {
 	my $huron;

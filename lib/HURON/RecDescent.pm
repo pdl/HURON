@@ -52,7 +52,10 @@ if you don't export anything, such as for a purely object-oriented module.
 
 sub _significant {
 	my $s = exists $_[0] ? $_[0] : $_ ;
-	defined ref $s ? return ((ref $s) ne 'HURON::Insignificant') : 1;
+	return defined ref $s ?
+		(ref $s) ne 'HURON::Insignificant'
+	 : 1;
+	return 1;
 }
 sub _unesc {
 	my $s = shift;
@@ -82,27 +85,29 @@ value: ( scalar | hash | array )
 
 key: (single_quoted_string|double_quoted_string|token)
 
-single_quoted_string: "'" (escaped_backslash|escaped_special|escaped_single_quote|not_single_quote)(s?) "'" { $return = &HURON::RecDescent::_top_and_tail (@item) }
+single_quoted_string: "'" (escaped_backslash|escaped_special|escaped_double_quote|escaped_single_quote|not_single_quote)(s?) "'" { $return = &HURON::RecDescent::_top_and_tail (@item) }
 
-double_quoted_string: '"' (escaped_backslash|escaped_special|escaped_double_quote|not_double_quote)(s?) '"' { $return = &HURON::RecDescent::_top_and_tail (@item) }
+double_quoted_string: '"' (escaped_backslash|escaped_special|escaped_double_quote|escaped_single_quote|not_double_quote)(s?) '"' { $return = &HURON::RecDescent::_top_and_tail (@item) }
 
 hash_contents: (json_hash_contents|yaml_hash_contents)
 
 array_contents: (json_array_contents|yaml_array_contents)
 
-json_array_contents: (optional_multiline_space|json_array_item(s?)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
+json_array_contents: (optional_multiline_space|json_array_item(s?) lone_item | json_array_item(s)) { shift @item; $return = [ grep { &HURON::RecDescent::_significant($_)} @item ] }
 
-json_array_item: (optional_multiline_space value optional_space|(optional_multiline_space value comma optional_space)(s)) { $return  = $item{value} }
+lone_item: (optional_multiline_space value optional_multiline_space) { $return = $item{value} }
 
-yaml_array_contents: (optional_multiline_space|yaml_array_item(s?)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
+json_array_item: (optional_multiline_space lone_item comma optional_multiline_space) { $return = $item{lone_item} }
+
+yaml_array_contents: (optional_multiline_space|yaml_array_item(s?)) { shift @item; $return = [ grep { &HURON::RecDescent::_significant($_) } @item ] }
 
 yaml_array_item: (optional_multiline_space newline_plus_dash value (optional_space comma)(?) optional_space) { $return  = $item{value} }
 
-json_hash_contents: (optional_multiline_space|json_hash_pair(s)) { $return = { map { @$_ } grep { &HURON::RecDescent::_significant } @item } }
+json_hash_contents: (optional_multiline_space|json_hash_pair(s?)) {  shift @item; $return = { map { @$_ } grep { &HURON::RecDescent::_significant($_) } @item } }
 
 json_hash_pair: (optional_multiline_space key optional_space colon optional_space value comma optional_space(s)) { $return  = [$item{key}, $item{value}] }
 
-yaml_hash_contents: (optional_multiline_space|yaml_hash_pair(s)) { $return = { map { @$_ } grep { &HURON::RecDescent::_significant } @item } }
+yaml_hash_contents: (optional_multiline_space|yaml_hash_pair(s?)) { shift @item;  $return = { map { @$_ } grep { &HURON::RecDescent::_significant($_) } @item } }
 
 yaml_hash_pair: (optional_multiline_space newline key optional_space colon optional_space value (optional_space comma)(?) optional_space(s)) { $return  = [$item{key}, $item{value}] }
 
@@ -120,11 +125,11 @@ comma: /,/
 
 escaped_backslash: /\\\\\\\\/ { $return = '\\\\' }
 
-escaped_single_quote: /\\\\'/ { $return = "\\\\\\'" }
+escaped_single_quote: /\\\\'/ { $return = "'" }
 
-escaped_double_quote: /\\\\"/ { $return = '\\\\\\"' }
+escaped_double_quote: /\\\\"/ { $return = '"' }
 
-escaped_special: /\\\\([^\\\\])/ { $return=&HURON::RecDescent::_unesc($item[1]) }
+escaped_special: /\\\\([^\\\\"'])/ { $return=&HURON::RecDescent::_unesc(shift @item) }
 
 number: /\\d+(?!=[[:alnum:]])/
 
@@ -141,6 +146,7 @@ not_double_quote: /[^"\\x00-\\x1F\\\\]+/
 not_single_quote: /[^'\\x00-\\x1F\\\\]+/
 `;
 
+$::RD_HINT = 1 if defined $ENV{RD_HINT} and $ENV{RD_HINT} eq '1';
 our $parser = Parse::RecDescent->new($grammar);
 sub parse {
 	my $self = shift;
