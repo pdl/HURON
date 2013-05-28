@@ -90,11 +90,11 @@ hash_contents: (json_hash_contents|yaml_hash_contents)
 
 array_contents: (json_array_contents|yaml_array_contents)
 
-json_array_contents: (optional_multiline_space|json_array_item(s)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
+json_array_contents: (optional_multiline_space|json_array_item(s?)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
 
-json_array_item: (optional_multiline_space|optional_multiline_space value optional_space|(optional_multiline_space value comma optional_space)(s)) { $return  = $item{value} }
+json_array_item: (optional_multiline_space value optional_space|(optional_multiline_space value comma optional_space)(s)) { $return  = $item{value} }
 
-yaml_array_contents: (optional_multiline_space|yaml_array_item(s)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
+yaml_array_contents: (optional_multiline_space|yaml_array_item(s?)) { $return = [ grep { &HURON::RecDescent::_significant } @item ] }
 
 yaml_array_item: (optional_multiline_space newline_plus_dash value (optional_space comma)(?) optional_space) { $return  = $item{value} }
 
